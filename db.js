@@ -3,7 +3,12 @@ const dbConfig = require('./config/db');
 
 mongoose.Promise = global.Promise;
 
-module.exports = () => {
+module.exports = {
+  connect,
+  disconnect
+};
+
+function connect () {
     let config = {
         host: `${dbConfig.host}:${dbConfig.port}`,
         db: dbConfig.name,
@@ -26,4 +31,8 @@ module.exports = () => {
     });
 
     mongoose.connect(`mongodb://${config.options.user}:${config.options.pass}@${config.host}/${config.db}`);
+};
+
+function disconnect () {
+  mongoose.disconnect();
 };
