@@ -7,35 +7,48 @@ const lodash = require('lodash');
 
 db.connect();
 
-projectModel.find().lean()
+projectModel.find({id: 32}).lean()
   .then((res) => {
-    return Promise.all(lodash.flattenDeep(res.map((project) => getReports(project.id))));
+    return Promise.all(lodash.flattenDeep(res.map((project) => getReports(project.id, project.currentIndex))));
   })
   .then((reports) => {
     db.disconnect();
   })
   .catch((error) => {
-    console.log(`Error: ${error}`)
+    console.log(`Error: ${error.stack}`)
     db.disconnect();
   });
 
 
-function getReports(id){
-  return queries.queries.map((queryName) => {
+function getReports(id, currentIndex){
+  return prepareReportUris(id, currentIndex).map(queryObj => {
     let options = {
-      uri: `${queries.baseRoute}/${id}/${queryName}/`,
-      json: true,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/537.36 (KHTML, like Gecko) ' +
-        'Chrome/56.0.2924.87 Safari/537.36'
-      },
+      uri: queryObj.uri,
+      json: true
     };
     console.log(`Getting from ${options.uri}`);
     return rp(options)
       .then((response) => {
         let data = {};
-        data[queryName] = response;
-        return reportModel.findOneAndUpdate({ id: id }, data, { upsert: true }).exec();
+        data[queryObj.name] = response;
+        console.log(`Received report ${options.uri}`, data);
+        return reportModel.findOneAndUpdate({
+          _id: { id: id, reportIndex: queryObj.reportIndex }}, data, { upsert: true }).exec();
       })
   });
+}
+
+function prepareReportUris(id, currentIndex){
+  let uris = [];
+  for(let i=1; i <= currentIndex; i++){
+    let reportQueries = queries.queries.map((queryName) => {
+      return {
+        name: queryName,
+        reportIndex: i,
+        uri: `${queries.baseRoute}/${id}/${queryName}?reportIndex=${i}`
+      };
+    });
+    uris = uris.concat(reportQueries);
+  }
+  return uris;
 }
